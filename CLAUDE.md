@@ -14,25 +14,31 @@ This is a Kaggle competition solution for "Make Data Count - Finding Data Refere
 
 This project uses Python 3.12+ with minimal dependencies defined in `pyproject.toml`. The current setup is bare-bones and will need package additions as development progresses.
 
-## Project Architecture Strategy
+## Current Architecture Strategy
 
-Based on the README analysis, the solution follows a three-phase approach:
+The project has evolved to use a sophisticated BERT-based approach implemented in `bert_data_identifier_trainer.py`:
 
-### Phase 1: Basic Regex Engine
-- Implement DOI pattern detection (`10.xxxx/yyyy` format)
-- Database name recognition (CHEMBL, PDB, GenBank, etc.)
-- URL pattern matching for data repositories
-- Target F1 score: 0.4-0.5
+### BERT Data Identifier Training System
+- **Model**: SciBERT (allenai/scibert_scivocab_uncased) for token classification
+- **Training Data**: Dynamic generation from MDC corpus using PMC full-text papers
+- **Pattern Recognition**: Built-in validation for common data identifiers (GEO, SRA, PDB, GenBank, DOI, etc.)
+- **Memory Efficiency**: Sequential learning without storing large datasets on disk
 
-### Phase 2: Advanced Pattern Matching
-- Multi-pattern integration with confidence scoring
-- False positive reduction techniques
-- Enhanced recall through pattern expansion
+### Key Components
+1. **PMCTextReader**: Efficiently reads full-text PMC papers and maps DOI to content
+2. **DataIdentifierPattern**: Validates and classifies data identifiers using regex patterns
+3. **TrainingDataGenerator**: Creates positive/negative examples from real paper-dataset pairs
+4. **BERTDataIdentifierTrainer**: Fine-tunes SciBERT for token-level data identifier detection
 
-### Phase 3: LLM Integration (if needed)
-- Few-shot learning for edge cases
-- Context-aware classification
-- Ensemble methods combining regex + LLM approaches
+### Training Strategy
+- **Positive Examples**: Sentences containing known data identifiers from MDC corpus
+- **Negative Examples**: Regular text without data identifiers (30% ratio)
+- **Token Classification**: BIO-style tagging where data identifiers get label 1, others get 0
+- **Dynamic Generation**: Training examples generated on-the-fly from corpus data
+
+### Current Performance
+- **Achieved F1 Score**: 0.591 (notebooks/score-0.591.ipynb)
+- **Target**: Approaching 0.6-0.7 range for competitive performance
 
 ## Key Constraints
 
@@ -41,15 +47,24 @@ Based on the README analysis, the solution follows a three-phase approach:
 - **Output Format**: CSV with columns: row_id, article_id, dataset_id, type
 - **Critical**: Only include papers with detected citations (no false positives for papers without citations)
 
-## Expected File Structure
+## Current File Structure
 
-As development progresses, expect:
-- `src/`: Python modules for PDF parsing, citation detection, and classification
-- `notebooks/`: Jupyter notebooks for experimentation and final Kaggle submission
-- Additional dependencies in `pyproject.toml` for PDF processing (PyMuPDF, marker) and ML libraries
+The project now includes:
+- **Core Scripts**:
+  - `bert_data_identifier_trainer.py`: BERT-based data identifier training system
+  - `main.py`: Main execution script
+  - `analyze_pmc_corpus.py`: PMC corpus analysis utilities
+  - `verify_data_identifiers.py`: Data identifier validation tools
+- **Notebooks**: 
+  - `notebooks/score-0.591.ipynb`: Latest working solution (F1=0.591)
+  - `notebooks/score-0.563.ipynb`: Previous iteration
+- **Documentation**: 
+  - `docs/`: Comprehensive analysis and strategy documentation
+- **Dependencies**: Full ML stack including PyTorch, Transformers, pandas, tqdm
 
-## Performance Targets
+## Performance Status
 
-- **Immediate**: Achieve 0.4-0.5 F1 with regex-only approach
-- **Short-term**: 0.6-0.7 F1 with advanced techniques
-- **Competition Goal**: Top-tier performance for prize money ($40K-$10K range)
+- **✓ Achieved**: F1 score 0.591 with BERT-based approach (exceeding initial targets)
+- **Current Goal**: Optimize to 0.6-0.7 F1 range for competitive positioning
+- **Competition Target**: Top-tier performance for prize money ($40K-$10K range)
+- **Next Steps**: Fine-tune hyperparameters, ensemble methods, advanced post-processing
