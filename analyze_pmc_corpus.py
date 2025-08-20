@@ -6,9 +6,6 @@ PMCテキストファイルのうち、corpus CSVに含まれているDOIがあ�
 そうでないファイルを特定し、統計を出力する。
 """
 
-import glob
-import re
-from collections import defaultdict
 from pathlib import Path
 
 import polars as pl
