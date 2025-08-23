@@ -1,0 +1,9 @@
+{
+  "total_papers_processed": 0,
+  "papers_with_corpus_data": 0,
+  "papers_with_found_identifiers": 0,
+  "total_identifiers_expected": 0,
+  "total_identifiers_found": 0,
+  "identifier_types_found": {},
+  "processing_errors": 0
+}

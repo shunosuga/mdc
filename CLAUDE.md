@@ -52,3 +52,36 @@ The project has evolved to use a sophisticated BERT-based approach implemented i
 - **Output Format**: CSV with columns: row_id, article_id, dataset_id, type
 - **Critical**: Only include papers with detected citations (no false positives for papers without citations)
 
+## Tool Usage Requirements
+
+### CRITICAL: Use Serena MCP for All Code Analysis Tasks
+**ALWAYS use Serena MCP tools for the following tasks - NEVER use alternative tools:**
+
+- **String/Pattern Searching**: Use `mcp__serena__search_for_pattern` instead of Grep, Bash grep, or other search tools
+- **File Finding**: Use `mcp__serena__find_file` instead of Glob or Bash find commands
+- **Code Symbol Analysis**: Use `mcp__serena__find_symbol`, `mcp__serena__get_symbols_overview`
+- **Code Reference Finding**: Use `mcp__serena__find_referencing_symbols`
+- **Directory Listing**: Use `mcp__serena__list_dir` instead of LS or Bash ls
+- **Code Reading**: Use symbolic tools first, then Read only when necessary
+- **Code Editing**: Use `mcp__serena__replace_symbol_body`, `mcp__serena__insert_after_symbol`, etc.
+
+**Why This Matters:**
+- Serena provides semantic understanding of code structure
+- More efficient token usage through targeted reads
+- Better context awareness for code relationships
+- Prevents reading entire files unnecessarily
+- Essential for maintaining code quality and understanding
+
+**Exception:** Only use non-Serena tools when:
+- Working with non-code files (images, PDFs, data files)
+- Performing system operations (git, package management)
+- Serena tools explicitly cannot handle the task
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+
+      
+      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.

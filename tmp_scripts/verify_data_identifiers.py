@@ -5,7 +5,6 @@ MDCコーパスに含まれるデータ識別子が実際の論文テキスト�
 """
 
 import json
-import os
 import re
 import time
 from collections import Counter, defaultdict
@@ -15,31 +14,40 @@ import pandas as pd
 from tqdm import tqdm
 
 
-def load_corpus_data(corpus_dir):
-    """コーパスデータを読み込み、DOIとデータセット識別子のマッピングを作成"""
+def load_corpus_data(corpus_file):
+    """corpus_consolidated.jsonからDOIとデータセット識別子のマッピングを作成"""
     print("=== Loading corpus data ===")
 
     doi_to_datasets = defaultdict(list)
     all_datasets = set()
 
-    corpus_files = list(Path(corpus_dir).glob("*.csv"))
+    print(f"Loading corpus data from {corpus_file}")
+    try:
+        with open(corpus_file, "r", encoding="utf-8") as f:
+            corpus_data = json.load(f)
 
-    for file_path in tqdm(corpus_files, desc="Processing corpus files"):
-        try:
-            df = pd.read_csv(file_path)
+        print(f"Loaded {len(corpus_data)} records from corpus file")
 
-            for _, row in df.iterrows():
-                if pd.notna(row.get("publication")) and pd.notna(row.get("dataset")):
-                    doi = row["publication"].replace("https://doi.org/", "")
-                    dataset_id = str(row["dataset"]).strip()
+        for record in tqdm(corpus_data, desc="Processing corpus records"):
+            publication = record.get("publication", "").strip()
+            datasets = record.get("datasets", [])
 
-                    if dataset_id and dataset_id != "nan":
-                        doi_to_datasets[doi].append(dataset_id)
-                        all_datasets.add(dataset_id)
+            if publication and datasets:
+                # DOI正規化
+                doi = publication.replace("https://doi.org/", "").replace(
+                    "http://dx.doi.org/", ""
+                )
 
-        except Exception as e:
-            print(f"Error processing {file_path}: {e}")
-            continue
+                for dataset_id in datasets:
+                    if dataset_id and isinstance(dataset_id, str):
+                        dataset_id = dataset_id.strip()
+                        if dataset_id and dataset_id != "nan":
+                            doi_to_datasets[doi].append(dataset_id)
+                            all_datasets.add(dataset_id)
+
+    except Exception as e:
+        print(f"Error loading corpus data: {e}")
+        raise
 
     print(
         f"Loaded {len(doi_to_datasets)} DOIs with {len(all_datasets)} unique datasets"
@@ -76,15 +84,17 @@ def find_pmc_text_files(pmc_base_dir):
     print("=== Finding PMC text files ===")
 
     text_files = []
-    base_path = Path(pmc_base_dir)
+    base_path = Path(pmc_base_dir) / "txt"  # txtサブディレクトリを追加
+
+    if not base_path.exists():
+        print(f"Warning: {base_path} does not exist")
+        return text_files
 
     # 展開済みディレクトリを探索
     for subdir in base_path.iterdir():
         if subdir.is_dir() and "PMC" in subdir.name:
-            for nested_dir in subdir.iterdir():
-                if nested_dir.is_dir():
-                    for txt_file in nested_dir.glob("PMC*.txt"):
-                        text_files.append(txt_file)
+            for txt_file in subdir.glob("PMC*.txt"):
+                text_files.append(txt_file)
 
     print(f"Found {len(text_files)} PMC text files")
     return text_files
@@ -154,12 +164,12 @@ def verify_identifiers_in_papers():
     print("=== Data Identifier Verification in PMC Papers ===")
 
     # パス設定
-    corpus_dir = "data/corpus/2025-08-15-data-citation-corpus-v4.1-csv"
-    pmc_ids_file = "data/papers/pmc/PMC-ids.csv"
-    pmc_base_dir = "data/papers/pmc"
+    corpus_file = "data/corpus/corpus_consolidated.json"
+    pmc_ids_file = "data/pmc/PMC-ids.csv"
+    pmc_base_dir = "data/pmc"
 
     # データ読み込み
-    doi_to_datasets, all_datasets = load_corpus_data(corpus_dir)
+    doi_to_datasets, all_datasets = load_corpus_data(corpus_file)
     pmc_to_doi = load_pmc_doi_mapping(pmc_ids_file)
     text_files = find_pmc_text_files(pmc_base_dir)
 
