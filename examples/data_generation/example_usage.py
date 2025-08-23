@@ -14,8 +14,8 @@ from transformers import AutoTokenizer
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.bert_training import BERTTrainingDataGenerator, RestorationTester
-from src.bert_training.strategies import (
+from src.data_generation import BERTTrainingDataGenerator, RestorationTester
+from src.data_generation.strategies import (
     BalancedNegativeSampler,
     ContextualNegativeSampler,
     ParagraphCropper,

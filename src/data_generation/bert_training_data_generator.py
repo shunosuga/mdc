@@ -129,9 +129,9 @@ class BERTTrainingDataGenerator:
                     "Page": pl.Utf8,  # Treat Page column as string to avoid parsing errors
                     "Issue": pl.Utf8,  # Treat Issue column as string
                     "Volume": pl.Utf8,  # Treat Volume column as string
-                }
+                },
             )
-            
+
             for row in df.iter_rows(named=True):
                 if row.get("DOI") and row.get("PMCID"):
                     pmcid = str(row["PMCID"]).replace("PMC", "")
@@ -147,19 +147,19 @@ class BERTTrainingDataGenerator:
         print("=== Finding PMC text files ===")
 
         text_files = []
-        
+
         # Try different possible directory structures
         possible_paths = [
             self.pmc_dir / "txt",  # Standard structure: pmc_dir/txt/PMC*/PMC*.txt
             self.pmc_dir,  # Direct structure: pmc_dir/PMC*/PMC*.txt
         ]
-        
+
         base_path = None
         for path in possible_paths:
             if path.exists():
                 base_path = path
                 break
-        
+
         if base_path is None:
             print(f"Warning: No valid PMC directory found in {self.pmc_dir}")
             return text_files
@@ -373,7 +373,7 @@ class BERTTrainingDataGenerator:
 
             return {
                 "input_ids": input_ids,  # Token IDs for training (list[int])
-                "tokens": tokens,        # Token strings for debugging (list[str])
+                "tokens": tokens,  # Token strings for debugging (list[str])
                 "labels": labels,
                 "original_text": text,
                 "expected_identifiers": expected_identifiers,
@@ -619,6 +619,7 @@ class BERTTrainingDataGenerator:
             # Handle direct script execution
             import sys
             from pathlib import Path
+
             sys.path.append(str(Path(__file__).parent))
             from restoration_tester import RestorationTester
 

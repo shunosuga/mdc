@@ -1,0 +1,48 @@
+# BERT Training Data Generator Configuration
+
+# Data paths
+data:
+  pmc_dir: "data/pmc"
+  corpus_file: "data/corpus/corpus_consolidated.json"
+  pmc_ids_file: "data/pmc/PMC-ids.csv"
+
+# Model configuration
+model:
+  tokenizer_name: "answerdotai/ModernBERT-base"
+
+# Generation settings
+generation:
+  num_samples: 1000
+  positive_ratio: 0.7
+  min_token_length: 10
+  max_token_length: 128
+  text_unit: "sentence"  # "sentence" or "paragraph"
+  random_seed: 42
+
+# Output settings
+output:
+  output_path: "training_data/bert_samples.jsonl"
+  output_format: "jsonl"  # "jsonl" or "json"
+
+# Processing settings
+processing:
+  include_restoration_test: true
+  sampling_percentage: null  # null for all files, or float (0.0-1.0) for sampling
+
+# Text processing strategies
+text_processing:
+  cropper:
+    strategy: "window"  # "window", "sentence", "paragraph"
+    window_size: 100
+    sentence_context: 1
+    paragraph_context: 0
+  
+  negative_sampler:
+    strategy: "balanced"  # "random", "contextual", "balanced"
+    sample_length: 100
+    min_gap: 50
+
+# Logging
+logging:
+  verbose: true
+  progress_bar: true

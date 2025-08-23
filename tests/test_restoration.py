@@ -12,7 +12,7 @@ from pathlib import Path
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.bert_training.restoration_tester import RestorationTester
+from src.data_generation.restoration_tester import RestorationTester
 
 
 def test_restoration_algorithm():

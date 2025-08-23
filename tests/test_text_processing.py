@@ -12,13 +12,12 @@ from pathlib import Path
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.bert_training.strategies.text_processing_strategies import (
-    WindowCropper,
-    SentenceCropper,
-    ParagraphCropper,
-    RandomNegativeSampler,
+from src.data_generation.strategies.text_processing_strategies import (
+    BalancedNegativeSampler,
     ContextualNegativeSampler,
-    BalancedNegativeSampler
+    RandomNegativeSampler,
+    SentenceCropper,
+    WindowCropper,
 )
 
 
