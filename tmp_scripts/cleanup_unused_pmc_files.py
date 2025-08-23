@@ -194,7 +194,7 @@ def cleanup_unused_files(
             files_to_delete.append((pmc_id, file_path, doi))
 
     # 結果の表示
-    logger.info(f"Analysis complete:")
+    logger.info("Analysis complete:")
     logger.info(f"  Files to keep: {len(files_to_keep)}")
     logger.info(f"  Files to delete: {len(files_to_delete)}")
     logger.info(f"  Files with missing DOI mapping: {len(missing_doi_mapping)}")

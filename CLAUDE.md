@@ -77,6 +77,28 @@ The project has evolved to use a sophisticated BERT-based approach implemented i
 - Performing system operations (git, package management)
 - Serena tools explicitly cannot handle the task
 
+## Code Style Guidelines
+
+### Data Processing Libraries
+- **Use Polars instead of Pandas**: Prefer `import polars as pl` over `import pandas as pd` for data processing tasks
+- Polars provides better performance and memory efficiency for large datasets
+
+### Type Annotations (Optional but Recommended)
+When using type annotations, follow modern Python practices:
+- **Use built-in types**: `dict`, `list`, `tuple`, `set` instead of `Dict`, `List`, `Tuple`, `Set` from typing
+- **Use built-in unions**: `str | None` instead of `Optional[str]` or `Union[str, None]`
+- **Examples**:
+  ```python
+  # Modern style (preferred)
+  def process_data(items: list[dict[str, str | int]]) -> dict[str, list[str]]:
+      pass
+  
+  # Old style (avoid)
+  from typing import Dict, List, Optional, Union
+  def process_data(items: List[Dict[str, Union[str, int]]]) -> Dict[str, List[str]]:
+      pass
+  ```
+
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.

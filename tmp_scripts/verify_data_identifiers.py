@@ -5,6 +5,7 @@ MDCコーパスに含まれるデータ識別子が実際の論文テキスト�
 """
 
 import json
+import random
 import re
 import time
 from collections import Counter, defaultdict
@@ -33,10 +34,23 @@ def load_corpus_data(corpus_file):
             datasets = record.get("datasets", [])
 
             if publication and datasets:
-                # DOI正規化
-                doi = publication.replace("https://doi.org/", "").replace(
+                # DOI正規化 - 10.xxxxのプレフィックスのみを抽出
+                doi = publication.lower()  # 大文字小文字を区別しない
+
+                # プロトコルプレフィックスを削除
+                doi = doi.replace("https://doi.org/", "").replace(
                     "http://dx.doi.org/", ""
                 )
+                doi = doi.replace("https://", "").replace("http://", "")
+
+                # 10.で始まるDOIパターンのみを抽出
+                if "10." in doi:
+                    # 10.から始まる部分を取得
+                    doi_start = doi.find("10.")
+                    if doi_start != -1:
+                        doi = doi[doi_start:]
+                        # スペースや他の区切り文字で終わる可能性があるので、適切に切り取り
+                        doi = doi.split()[0]  # 最初の単語のみ取得
 
                 for dataset_id in datasets:
                     if dataset_id and isinstance(dataset_id, str):
@@ -104,12 +118,33 @@ def create_search_patterns(dataset_id):
     """データセット識別子の検索パターンを作成"""
     patterns = []
 
-    # 基本パターン（そのまま）
-    patterns.append(re.escape(dataset_id))
+    # DOIまたはURLの場合の特別処理
+    if dataset_id.startswith(("http://", "https://")) or "10." in dataset_id:
+        # URLからプロトコルを削除
+        clean_id = dataset_id
+        if clean_id.startswith(("http://", "https://")):
+            clean_id = clean_id.replace("https://", "").replace("http://", "")
 
-    # 大文字小文字を無視
-    patterns.append(re.escape(dataset_id.upper()))
-    patterns.append(re.escape(dataset_id.lower()))
+        # 10.で始まるDOIパターンのみを抽出
+        if "10." in clean_id:
+            doi_start = clean_id.find("10.")
+            if doi_start != -1:
+                clean_id = clean_id[doi_start:]
+                # スペースや他の区切り文字で終わる可能性があるので、適切に切り取り
+                clean_id = clean_id.split()[0]
+
+        # 大文字小文字を区別しない検索パターンを追加
+        patterns.append(re.escape(clean_id.lower()))
+        patterns.append(re.escape(clean_id.upper()))
+        patterns.append(re.escape(clean_id))
+    else:
+        # 通常のデータセット識別子の処理
+        # 基本パターン（そのまま）
+        patterns.append(re.escape(dataset_id))
+
+        # 大文字小文字を無視
+        patterns.append(re.escape(dataset_id.upper()))
+        patterns.append(re.escape(dataset_id.lower()))
 
     # スペースや区切り文字を含む可能性
     spaced_id = re.sub(r"([A-Za-z])(\d)", r"\1 \2", dataset_id)
@@ -136,6 +171,7 @@ def search_identifiers_in_text(text_content, dataset_ids):
 
         for pattern in patterns:
             # 単語境界を含む検索パターン
+            # NOTE: この設定をすると、単語境界がない場合はヒットしない
             regex_pattern = r"\b" + pattern + r"\b"
 
             try:
@@ -159,9 +195,10 @@ def search_identifiers_in_text(text_content, dataset_ids):
     return found_identifiers
 
 
-def verify_identifiers_in_papers():
+def verify_identifiers_in_papers(sample_percentage=5.0):
     """メイン検証処理"""
     print("=== Data Identifier Verification in PMC Papers ===")
+    print(f"Sampling {sample_percentage}% of available files")
 
     # パス設定
     corpus_file = "data/corpus/corpus_consolidated.json"
@@ -171,7 +208,20 @@ def verify_identifiers_in_papers():
     # データ読み込み
     doi_to_datasets, all_datasets = load_corpus_data(corpus_file)
     pmc_to_doi = load_pmc_doi_mapping(pmc_ids_file)
-    text_files = find_pmc_text_files(pmc_base_dir)
+    all_text_files = find_pmc_text_files(pmc_base_dir)
+
+    # サンプリング
+    if sample_percentage < 100:
+        sample_size = int(len(all_text_files) * sample_percentage / 100)
+        text_files = random.sample(
+            all_text_files, min(sample_size, len(all_text_files))
+        )
+        print(
+            f"Sampled {len(text_files)} files out of {len(all_text_files)} total files"
+        )
+    else:
+        text_files = all_text_files
+        print(f"Processing all {len(text_files)} files")
 
     # 結果収集用
     verification_results = []
@@ -360,6 +410,10 @@ def display_summary(summary_stats):
 
 if __name__ == "__main__":
     start_time = time.time()
-    verify_identifiers_in_papers()
+    # デフォルトで5%のサンプリング、コマンドライン引数で変更可能
+    import sys
+
+    sample_percentage = float(sys.argv[1]) if len(sys.argv) > 1 else 5.0
+    verify_identifiers_in_papers(sample_percentage)
     end_time = time.time()
     print(f"\nTotal processing time: {end_time - start_time:.2f} seconds")
