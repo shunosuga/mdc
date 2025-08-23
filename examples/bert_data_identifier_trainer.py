@@ -320,7 +320,7 @@ class BERTDataIdentifierTrainer:
     """BERTデータ識別子検出モデルの訓練"""
 
     def __init__(
-        self, model_name: str = "allenai/scibert_scivocab_uncased", num_labels: int = 2
+        self, model_name: str = "answerdotai/ModernBERT-base", num_labels: int = 2
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {self.device}")

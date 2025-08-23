@@ -3,7 +3,7 @@
 ## BERT-based Data Identifier System
 
 ### Model Architecture
-- **Base Model**: SciBERT (allenai/scibert_scivocab_uncased)
+- **Base Model**: ModernBERT-base (answerdotai/ModernBERT-base)
 - **Task**: Token classification for data identifier detection
 - **Labels**: Binary classification (0 = non-identifier, 1 = data identifier)
 - **Approach**: BIO-style tagging adapted for token-level detection
@@ -41,7 +41,7 @@
 
 #### 4. BERTDataIdentifierTrainer
 - **Training Process**:
-  - Fine-tunes SciBERT for token classification
+  - Fine-tunes ModernBERT for token classification
   - Sequential learning without storing datasets
   - GPU acceleration with CPU fallback
   - Progress tracking with tqdm
@@ -70,7 +70,7 @@ PMC Corpus → PMCTextReader → DataIdentifierPattern → TrainingDataGenerator
 1. **Corpus Processing**: PMC papers loaded and processed
 2. **Pattern Matching**: Known data identifiers extracted using regex
 3. **Example Generation**: Positive/negative examples created dynamically
-4. **Token Classification**: BERT trained to identify data identifiers at token level
+4. **Token Classification**: ModernBERT trained to identify data identifiers at token level
 
 ### Performance Metrics
 - **Current F1 Score**: 0.591 (notebooks/score-0.591.ipynb)

@@ -118,11 +118,22 @@ class BERTTrainingDataGenerator:
                                 self.doi_to_datasets[doi] = []
                             self.doi_to_datasets[doi].append(dataset_id)
 
-        # Load PMC-DOI mapping
+        # Load PMC-DOI mapping with error handling for mixed types
         try:
-            df = pl.read_csv(self.pmc_ids_file)
+            # Use schema_overrides to handle mixed column types
+            df = pl.read_csv(
+                self.pmc_ids_file,
+                ignore_errors=True,
+                infer_schema_length=10000,
+                schema_overrides={
+                    "Page": pl.Utf8,  # Treat Page column as string to avoid parsing errors
+                    "Issue": pl.Utf8,  # Treat Issue column as string
+                    "Volume": pl.Utf8,  # Treat Volume column as string
+                }
+            )
+            
             for row in df.iter_rows(named=True):
-                if row.get("DOI"):
+                if row.get("DOI") and row.get("PMCID"):
                     pmcid = str(row["PMCID"]).replace("PMC", "")
                     doi = str(row["DOI"]).strip().lower()
                     self.pmc_to_doi[pmcid] = doi
@@ -136,10 +147,21 @@ class BERTTrainingDataGenerator:
         print("=== Finding PMC text files ===")
 
         text_files = []
-        base_path = self.pmc_dir / "txt"
-
-        if not base_path.exists():
-            print(f"Warning: {base_path} does not exist")
+        
+        # Try different possible directory structures
+        possible_paths = [
+            self.pmc_dir / "txt",  # Standard structure: pmc_dir/txt/PMC*/PMC*.txt
+            self.pmc_dir,  # Direct structure: pmc_dir/PMC*/PMC*.txt
+        ]
+        
+        base_path = None
+        for path in possible_paths:
+            if path.exists():
+                base_path = path
+                break
+        
+        if base_path is None:
+            print(f"Warning: No valid PMC directory found in {self.pmc_dir}")
             return text_files
 
         for subdir in base_path.iterdir():
@@ -308,7 +330,8 @@ class BERTTrainingDataGenerator:
         """Create a single training sample."""
         try:
             tokenization = self._tokenize_with_spans(text)
-            tokens = tokenization["tokens"]
+            tokens = tokenization["tokens"]  # Token strings for debugging/readability
+            input_ids = tokenization["input_ids"]  # Token IDs for training
             token_spans = tokenization["token_spans"]
 
             if sample_type == "positive":
@@ -349,7 +372,8 @@ class BERTTrainingDataGenerator:
                         )
 
             return {
-                "tokens": tokens,
+                "input_ids": input_ids,  # Token IDs for training (list[int])
+                "tokens": tokens,        # Token strings for debugging (list[str])
                 "labels": labels,
                 "original_text": text,
                 "expected_identifiers": expected_identifiers,
@@ -373,7 +397,7 @@ class BERTTrainingDataGenerator:
         self,
         num_samples: int = 10000,
         positive_ratio: float = 0.7,
-        tokenizer_name: str = "allenai/scibert_scivocab_uncased",
+        tokenizer_name: str = "answerdotai/ModernBERT-base",
         text_unit: str = "sentence",
         min_token_length: int = 10,
         max_token_length: int = 128,
@@ -589,7 +613,14 @@ class BERTTrainingDataGenerator:
 
     def _test_restoration_accuracy(self, samples: list[dict]) -> dict:
         """Test restoration accuracy on generated samples."""
-        from .restoration_tester import RestorationTester
+        try:
+            from .restoration_tester import RestorationTester
+        except ImportError:
+            # Handle direct script execution
+            import sys
+            from pathlib import Path
+            sys.path.append(str(Path(__file__).parent))
+            from restoration_tester import RestorationTester
 
         tester = RestorationTester()
         return tester.test_dataset(samples)
@@ -599,10 +630,10 @@ if __name__ == "__main__":
     # Example usage
     from transformers import AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
     generator = BERTTrainingDataGenerator(
-        pmc_dir="data/pmc/txt",
+        pmc_dir="data/pmc",  # Updated to correct base path
         corpus_file="data/corpus/corpus_consolidated.json",
         pmc_ids_file="data/pmc/PMC-ids.csv",
         tokenizer=tokenizer,

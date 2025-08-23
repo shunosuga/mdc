@@ -4,7 +4,7 @@
 
 ## システム概要
 
-SciBERTを使用してトークンレベルでデータ識別子を検出する機械学習システム。MDCコーパスとPMC全文論文を使用して動的に学習データを生成し、メモリ効率的な逐次学習を実現。
+ModernBERT-baseを使用してトークンレベルでデータ識別子を検出する機械学習システム。MDCコーパスとPMC全文論文を使用して動的に学習データを生成し、メモリ効率的な逐次学習を実現。
 
 ## 主要クラス詳細
 
@@ -137,7 +137,7 @@ MDCコーパス → DOI-データセット → PMC全文 → 文分割 → ラ�
 **目的**: BERTモデルの訓練と推論
 
 #### モデル構成
-- **ベースモデル**: `allenai/scibert_scivocab_uncased`
+- **ベースモデル**: `answerdotai/ModernBERT-base`
 - **タスク**: Token Classification (2クラス: OTHER, DATA_ID)
 - **デバイス**: CUDA/CPU自動選択
 
@@ -173,7 +173,7 @@ MDCコーパス → DOI-データセット → PMC全文 → 文分割 → ラ�
 ```
 1. PMCTextReader初期化（論文-DOIマッピング）
 2. TrainingDataGenerator初期化（MDCコーパス読み込み）
-3. BERTDataIdentifierTrainer初期化（SciBERT読み込み）
+3. BERTDataIdentifierTrainer初期化（ModernBERT読み込み）
 4. 各エポック:
    - 学習データ動的生成（最大100,000例）
    - DatasetとDataLoader作成
@@ -203,7 +203,7 @@ MDCコーパス → DOI-データセット → PMC全文 → 文分割 → ラ�
 - ポジティブ・ネガティブサンプルのバランス調整
 
 ### モデル性能
-- SciBERT使用による科学論文特化
+- ModernBERT使用による科学論文特化
 - トークンレベル分類による高精度検出
 - ワームアップ付き学習率スケジュール
 

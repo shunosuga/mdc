@@ -6,16 +6,15 @@ Demonstrates how to use the BERT training data generator with different
 text cropping and negative sampling strategies.
 """
 
-from transformers import AutoTokenizer
-
 import sys
 from pathlib import Path
+
+from transformers import AutoTokenizer
 
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.bert_training import BERTTrainingDataGenerator, RestorationTester
-from src.bert_training.restoration_tester import test_restoration_algorithm
 from src.bert_training.strategies import (
     BalancedNegativeSampler,
     ContextualNegativeSampler,
@@ -33,7 +32,7 @@ def example_basic_usage():
     print("=== Basic Usage Example ===")
 
     # Initialize tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
     # Initialize generator
     generator = BERTTrainingDataGenerator(
@@ -68,7 +67,7 @@ def example_custom_strategies():
     print("\n=== Custom Strategies Example ===")
 
     # Initialize tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
     # Initialize generator
     generator = BERTTrainingDataGenerator(
@@ -111,7 +110,7 @@ def example_factory_functions():
     balanced_sampler = create_negative_sampler("balanced")
 
     # Initialize generator
-    tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
     generator = BERTTrainingDataGenerator(
         pmc_dir="data/pmc/txt",
         corpus_file="data/corpus/corpus_consolidated.json",
@@ -136,7 +135,7 @@ def example_different_croppers():
     """Example comparing different text cropping strategies."""
     print("\n=== Text Cropper Comparison ===")
 
-    tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
     # Different cropping strategies
     croppers = {
@@ -174,7 +173,7 @@ def example_negative_samplers():
     """Example comparing different negative sampling strategies."""
     print("\n=== Negative Sampler Comparison ===")
 
-    tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
     # Different negative sampling strategies
     samplers = {
@@ -210,6 +209,15 @@ def example_negative_samplers():
 def example_restoration_testing():
     """Example of testing restoration accuracy."""
     print("\n=== Restoration Testing Example ===")
+
+    # Import test function from tests module
+    import sys
+    from pathlib import Path
+
+    tests_path = Path(__file__).parent.parent.parent / "tests"
+    sys.path.append(str(tests_path))
+
+    from test_restoration import test_restoration_algorithm
 
     # Run built-in restoration algorithm tests
     test_restoration_algorithm()
@@ -276,7 +284,7 @@ def example_complete_workflow():
     print("\n=== Complete Workflow Example ===")
 
     # Initialize tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
+    tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
     # Create custom strategies
     text_cropper = SentenceCropper(sentence_context=1)
@@ -294,7 +302,7 @@ def example_complete_workflow():
     result = generator.generate(
         num_samples=1000,
         positive_ratio=0.7,
-        tokenizer_name="allenai/scibert_scivocab_uncased",
+        tokenizer_name="answerdotai/ModernBERT-base",
         text_unit="sentence",
         min_token_length=10,
         max_token_length=128,

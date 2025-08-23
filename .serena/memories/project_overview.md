@@ -26,11 +26,11 @@ The project uses a BERT-based approach implemented in `bert_data_identifier_trai
 1. **PMCTextReader**: Efficiently reads full-text PMC papers and maps DOI to content
 2. **DataIdentifierPattern**: Validates and classifies data identifiers using regex patterns
 3. **TrainingDataGenerator**: Creates positive/negative examples from real paper-dataset pairs
-4. **BERTDataIdentifierTrainer**: Fine-tunes SciBERT for token-level data identifier detection
+4. **BERTDataIdentifierTrainer**: Fine-tunes ModernBERT for token-level data identifier detection
 5. **PaperChunker**: Chunks papers into manageable sections for BERT processing
 
 ### Training Strategy
-- **Model**: SciBERT (allenai/scibert_scivocab_uncased) for token classification
+- **Model**: ModernBERT-base (answerdotai/ModernBERT-base) for token classification
 - **Training Data**: Dynamic generation from MDC corpus using PMC full-text papers
 - **Token Classification**: BIO-style tagging where data identifiers get label 1, others get 0
 - **Current Performance**: F1 Score of 0.591 (notebooks/score-0.591.ipynb)

@@ -60,7 +60,7 @@ Users can specify:
 
 - **num_samples** (`int`): Total number of samples to generate (default: 10000)
 - **positive_ratio** (`float`): Ratio of positive samples (0.0-1.0, default: 0.7)
-- **tokenizer_name** (`str`): HuggingFace tokenizer name (default: "allenai/scibert_scivocab_uncased")
+- **tokenizer_name** (`str`): HuggingFace tokenizer name (default: "answerdotai/ModernBERT-base")
 - **text_unit** (`str`): Text segmentation unit ("sentence" | "paragraph", default: "sentence")
 - **min_token_length** (`int`): Minimum text length in tokens (default: 10)
 - **max_token_length** (`int`): Maximum text length in tokens (default: 128)
@@ -257,7 +257,7 @@ Each line contains one training sample:
     "source_files_processed": 892,
     "generation_timestamp": "2025-08-23T10:30:00Z",
     "parameters": {
-      "tokenizer_name": "allenai/scibert_scivocab_uncased",
+      "tokenizer_name": "answerdotai/ModernBERT-base",
       "num_samples": 10000,
       "positive_ratio": 0.7,
       "max_token_length": 128,
@@ -274,7 +274,7 @@ from bert_training_data_generator import BERTTrainingDataGenerator
 from transformers import AutoTokenizer
 
 # Initialize tokenizer
-tokenizer = AutoTokenizer.from_pretrained("allenai/scibert_scivocab_uncased")
+tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
 
 # Initialize generator
 generator = BERTTrainingDataGenerator(
@@ -299,7 +299,7 @@ def random_negative_sampler(text, excluded_regions):
 result = generator.generate(
     num_samples=10000,
     positive_ratio=0.7,
-    tokenizer_name="allenai/scibert_scivocab_uncased",
+    tokenizer_name="answerdotai/ModernBERT-base",
     text_unit="sentence",
     max_token_length=128,
     output_format="jsonl",

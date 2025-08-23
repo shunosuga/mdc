@@ -172,7 +172,7 @@ from transformers import AutoModelForTokenClassification
 
 # 2クラス分類モデル
 model = AutoModelForTokenClassification.from_pretrained(
-    "allenai/scibert_scivocab_uncased",
+    "answerdotai/ModernBERT-base",
     num_labels=2  # O, DATA_ID
 )
 

@@ -24,7 +24,7 @@ This project uses Python 3.12+ with minimal dependencies defined in `pyproject.t
 The project has evolved to use a sophisticated BERT-based approach implemented in `bert_data_identifier_trainer.py`:
 
 ### BERT Data Identifier Training System
-- **Model**: SciBERT (allenai/scibert_scivocab_uncased) for token classification
+- **Model**: ModernBERT-base (answerdotai/ModernBERT-base) for token classification
 - **Training Data**: Dynamic generation from MDC corpus using PMC full-text papers
 - **Pattern Recognition**: Built-in validation for common data identifiers (GEO, SRA, PDB, GenBank, DOI, etc.)
 - **Memory Efficiency**: Sequential learning without storing large datasets on disk
@@ -33,7 +33,7 @@ The project has evolved to use a sophisticated BERT-based approach implemented i
 1. **PMCTextReader**: Efficiently reads full-text PMC papers and maps DOI to content
 2. **DataIdentifierPattern**: Validates and classifies data identifiers using regex patterns
 3. **TrainingDataGenerator**: Creates positive/negative examples from real paper-dataset pairs
-4. **BERTDataIdentifierTrainer**: Fine-tunes SciBERT for token-level data identifier detection
+4. **BERTDataIdentifierTrainer**: Fine-tunes ModernBERT for token-level data identifier detection
 
 ### Training Strategy
 - **Positive Examples**: Sentences containing known data identifiers from MDC corpus
