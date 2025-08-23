@@ -14,6 +14,11 @@ This is a Kaggle competition solution for "Make Data Count - Finding Data Refere
 
 This project uses Python 3.12+ with minimal dependencies defined in `pyproject.toml`. The current setup is bare-bones and will need package additions as development progresses.
 
+### Virtual Environment Setup
+- **Package Manager**: Uses `uv` to create and manage the virtual environment in `.venv`
+- **Jupyter**: Installed in the `.venv` virtual environment
+- **Notebooks**: Use the `.venv` kernel for all notebook execution
+
 ## Current Architecture Strategy
 
 The project has evolved to use a sophisticated BERT-based approach implemented in `bert_data_identifier_trainer.py`:
@@ -47,24 +52,3 @@ The project has evolved to use a sophisticated BERT-based approach implemented i
 - **Output Format**: CSV with columns: row_id, article_id, dataset_id, type
 - **Critical**: Only include papers with detected citations (no false positives for papers without citations)
 
-## Current File Structure
-
-The project now includes:
-- **Core Scripts**:
-  - `bert_data_identifier_trainer.py`: BERT-based data identifier training system
-  - `main.py`: Main execution script
-  - `analyze_pmc_corpus.py`: PMC corpus analysis utilities
-  - `verify_data_identifiers.py`: Data identifier validation tools
-- **Notebooks**: 
-  - `notebooks/score-0.591.ipynb`: Latest working solution (F1=0.591)
-  - `notebooks/score-0.563.ipynb`: Previous iteration
-- **Documentation**: 
-  - `docs/`: Comprehensive analysis and strategy documentation
-- **Dependencies**: Full ML stack including PyTorch, Transformers, pandas, tqdm
-
-## Performance Status
-
-- **✓ Achieved**: F1 score 0.591 with BERT-based approach (exceeding initial targets)
-- **Current Goal**: Optimize to 0.6-0.7 F1 range for competitive positioning
-- **Competition Target**: Top-tier performance for prize money ($40K-$10K range)
-- **Next Steps**: Fine-tune hyperparameters, ensemble methods, advanced post-processing

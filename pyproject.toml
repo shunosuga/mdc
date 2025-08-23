@@ -5,10 +5,38 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "ipykernel>=6.30.1",
+    "jupyter>=1.1.1",
     "pandas>=2.3.1",
+    "paperscraper>=0.3.2",
     "polars>=1.32.3",
     "scikit-learn>=1.7.1",
     "torch>=2.8.0",
     "tqdm>=4.67.1",
     "transformers>=4.55.2",
 ]
+
+[tool.ruff]
+# Enable unused import detection (F401) and other import-related rules
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (includes F401 for unused imports)
+    "I",    # isort (import sorting)
+]
+
+# Fix unused imports automatically
+fix = true
+show-fixes = true
+
+# Automatically remove unused imports
+fixable = [
+    "F401",  # unused-import
+    "I001",  # unsorted-imports
+    "I002",  # missing-required-import
+]
+
+[tool.ruff.isort]
+# Import sorting configuration
+known-first-party = ["your_project_name"]
+force-single-line = false

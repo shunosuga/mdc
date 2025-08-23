@@ -5,19 +5,16 @@ MDCコーパスを用いてデータ識別子を検出するBERTモデルを訓�
 メモリ効率的な逐次学習によりディスクに保存せずに学習データを動的生成
 """
 
-import json
 import logging
-import os
 import random
 import re
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional
 
 import pandas as pd
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import (
