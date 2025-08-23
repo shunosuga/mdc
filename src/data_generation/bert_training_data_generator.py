@@ -58,7 +58,11 @@ class BERTTrainingDataGenerator:
     """Generate BERT training data for data identifier detection."""
 
     def __init__(
-        self, pmc_dir: str, corpus_file: str, pmc_ids_file: str, tokenizer=None
+        self,
+        pmc_dir: str,
+        corpus_file: str,
+        pmc_ids_file: str,
+        tokenizer: AutoTokenizer,
     ):
         """
         Initialize the training data generator.
@@ -409,10 +413,10 @@ class BERTTrainingDataGenerator:
         negative_sampler: NegativeSampler | None = None,
     ) -> dict:
         """
-        Generate BERT training data.
+        Generate BERT training data efficiently.
 
         Args:
-            num_samples: Total number of samples to generate
+            num_samples: Total number of samples to generate across all files
             positive_ratio: Ratio of positive samples (0.0-1.0)
             tokenizer_name: HuggingFace tokenizer name
             text_unit: Text segmentation unit ("sentence" | "paragraph")
@@ -428,7 +432,7 @@ class BERTTrainingDataGenerator:
         Returns:
             Generation results with statistics and test results
         """
-        print("=== BERT Training Data Generation ===")
+        print("=== BERT Training Data Generation (Efficient) ===")
         print(f"Target samples: {num_samples} (positive ratio: {positive_ratio})")
 
         # Set random seed
@@ -439,132 +443,70 @@ class BERTTrainingDataGenerator:
             print(f"Loading tokenizer: {tokenizer_name}")
             self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
 
-        # Find text files
-        text_files = self._find_pmc_text_files()
-        random.shuffle(text_files)
-
-        # Generation settings
+        # Calculate targets
         target_positive = int(num_samples * positive_ratio)
         target_negative = num_samples - target_positive
 
-        generated_samples = []
-        positive_count = 0
-        negative_count = 0
+        print(f"Target: {target_positive} positive, {target_negative} negative samples")
 
-        print(
-            f"\nTarget: {target_positive} positive, {target_negative} negative samples"
+        # Find and shuffle all text files
+        print("=== Finding and shuffling files ===")
+        text_files = self._find_pmc_text_files()
+        random.shuffle(text_files)
+        print(f"Available files: {len(text_files)}")
+
+        # Phase 1: Generate positive samples
+        print(f"\n=== Phase 1: Generating {target_positive} positive samples ===")
+        positive_samples = self._generate_positive_samples_efficient(
+            text_files,
+            target_positive,
+            min_token_length,
+            max_token_length,
+            text_cropper,
         )
-        print("Starting generation...")
 
-        # Process files
-        for text_file in tqdm(text_files, desc="Processing files"):
-            if len(generated_samples) >= num_samples:
-                break
+        # Phase 2: Generate negative samples
+        print(f"\n=== Phase 2: Generating {target_negative} negative samples ===")
+        negative_samples = self._generate_negative_samples_efficient(
+            text_files,
+            target_negative,
+            min_token_length,
+            max_token_length,
+            negative_sampler,
+        )
 
-            try:
-                # Get PMC ID and DOI
-                pmcid = text_file.stem.replace("PMC", "")
-                doi = self.pmc_to_doi.get(pmcid)
-                if not doi:
-                    continue
+        # Combine and shuffle all samples
+        all_samples = positive_samples + negative_samples
+        random.shuffle(all_samples)
 
-                # Get expected datasets
-                expected_datasets = self.doi_to_datasets.get(doi, [])
-
-                # Read file
-                with open(text_file, "r", encoding="utf-8", errors="ignore") as f:
-                    text_content = f.read()
-
-                # Segment text
-                segments = self._segment_text(text_content, text_unit)
-
-                for segment in segments:
-                    if len(generated_samples) >= num_samples:
-                        break
-
-                    # Find identifiers in segment
-                    found_identifiers = self._find_identifiers_in_text(
-                        segment, expected_datasets
-                    )
-
-                    # Generate positive sample if identifiers found
-                    if found_identifiers and positive_count < target_positive:
-                        # Apply text cropper if provided
-                        processed_text = segment
-                        if text_cropper:
-                            processed_text = text_cropper.crop(
-                                segment, found_identifiers
-                            )
-
-                        sample = self._create_training_sample(
-                            processed_text,
-                            found_identifiers,
-                            f"PMC{pmcid}",
-                            doi,
-                            "positive",
-                        )
-
-                        if (
-                            sample
-                            and min_token_length
-                            <= len(sample["tokens"])
-                            <= max_token_length
-                        ):
-                            generated_samples.append(sample)
-                            positive_count += 1
-
-                    # Generate negative sample if no identifiers found
-                    elif not found_identifiers and negative_count < target_negative:
-                        # Apply negative sampler if provided
-                        processed_text = segment
-                        if negative_sampler:
-                            processed_text = negative_sampler.sample(segment, [])
-
-                        sample = self._create_training_sample(
-                            processed_text, [], f"PMC{pmcid}", doi, "negative"
-                        )
-
-                        if (
-                            sample
-                            and min_token_length
-                            <= len(sample["tokens"])
-                            <= max_token_length
-                        ):
-                            generated_samples.append(sample)
-                            negative_count += 1
-
-            except Exception as e:
-                print(f"Error processing {text_file}: {e}")
-                continue
-
-        print(f"\nGenerated {len(generated_samples)} samples")
-        print(f"Positive: {positive_count}, Negative: {negative_count}")
+        print("\n=== Generation Complete ===")
+        print(f"Generated {len(all_samples)} samples total")
+        print(f"Positive: {len(positive_samples)}, Negative: {len(negative_samples)}")
 
         # Test restoration if requested
         restoration_results = {}
         if include_restoration_test:
             print("\nTesting restoration accuracy...")
-            restoration_results = self._test_restoration_accuracy(generated_samples)
+            restoration_results = self._test_restoration_accuracy(all_samples)
 
         # Save results
         print(f"\nSaving to {output_path}...")
-        self._save_samples(generated_samples, output_path, output_format)
+        self._save_samples(all_samples, output_path, output_format)
 
         # Create summary
         generation_summary = {
-            "total_samples": len(generated_samples),
-            "positive_samples": positive_count,
-            "negative_samples": negative_count,
-            "average_tokens_per_sample": sum(
-                len(s["tokens"]) for s in generated_samples
-            )
-            / len(generated_samples)
-            if generated_samples
+            "total_samples": len(all_samples),
+            "positive_samples": len(positive_samples),
+            "negative_samples": len(negative_samples),
+            "available_files": len(text_files),
+            "average_tokens_per_sample": sum(len(s["input_ids"]) for s in all_samples)
+            / len(all_samples)
+            if all_samples
             else 0,
             "unique_identifiers_found": len(
                 set(
                     identifier
-                    for sample in generated_samples
+                    for sample in all_samples
                     for identifier in sample["expected_identifiers"]
                 )
             ),
@@ -598,6 +540,475 @@ class BERTTrainingDataGenerator:
             "restoration_test_results": restoration_results,
             "output_files": [output_path, summary_file],
         }
+
+    def _generate_positive_samples_efficient(
+        self,
+        text_files: list[Path],
+        target_count: int,
+        min_token_length: int,
+        max_token_length: int,
+        text_cropper: TextCropper | None,
+    ) -> list[dict]:
+        """
+        Efficiently generate positive samples by processing whole files at once.
+
+        Args:
+            text_files: List of PMC text files
+            target_count: Number of positive samples to generate
+            min_token_length: Minimum token length
+            max_token_length: Maximum token length
+            text_cropper: Text cropping strategy
+
+        Returns:
+            List of positive samples
+        """
+        positive_samples = []
+        processed_files = 0
+
+        for text_file in tqdm(text_files, desc="Generating positive samples"):
+            if len(positive_samples) >= target_count:
+                break
+
+            try:
+                # Get PMC ID and DOI
+                pmcid = text_file.stem.replace("PMC", "")
+                doi = self.pmc_to_doi.get(pmcid)
+                if not doi:
+                    continue
+
+                # Get expected datasets for this DOI
+                expected_datasets = self.doi_to_datasets.get(doi, [])
+                if not expected_datasets:
+                    continue
+
+                # Read entire file
+                with open(text_file, "r", encoding="utf-8", errors="ignore") as f:
+                    full_text = f.read()
+
+                # Find ALL identifiers in the entire text at once
+                all_identifiers = self._find_identifiers_in_text(
+                    full_text, expected_datasets
+                )
+
+                if not all_identifiers:
+                    continue
+
+                # Randomly select one identifier as the focus
+                focus_identifier = random.choice(all_identifiers)
+
+                # Extract text around the focus identifier
+                sample_text = self._extract_text_around_identifier(
+                    full_text, focus_identifier, max_token_length, text_cropper
+                )
+
+                if not sample_text:
+                    continue
+
+                # Find all identifiers in the extracted sample text
+                sample_identifiers = self._find_identifiers_in_text(
+                    sample_text, expected_datasets
+                )
+
+                if not sample_identifiers:
+                    continue
+
+                # Create training sample
+                sample = self._create_training_sample(
+                    sample_text,
+                    sample_identifiers,
+                    f"PMC{pmcid}",
+                    doi,
+                    "positive",
+                )
+
+                # Validate sample length
+                if (
+                    sample
+                    and min_token_length <= len(sample["input_ids"]) <= max_token_length
+                ):
+                    positive_samples.append(sample)
+
+                processed_files += 1
+
+                # Progress update
+                if processed_files % 100 == 0:
+                    print(
+                        f"Progress: {len(positive_samples)}/{target_count} positive samples from {processed_files} files"
+                    )
+
+            except Exception as e:
+                print(f"Error processing {text_file}: {e}")
+                continue
+
+        print(
+            f"Generated {len(positive_samples)} positive samples from {processed_files} files"
+        )
+        return positive_samples
+
+    def _generate_negative_samples_efficient(
+        self,
+        text_files: list[Path],
+        target_count: int,
+        min_token_length: int,
+        max_token_length: int,
+        negative_sampler: NegativeSampler | None,
+    ) -> list[dict]:
+        """
+        Efficiently generate negative samples by avoiding identifier regions.
+
+        Args:
+            text_files: List of PMC text files
+            target_count: Number of negative samples to generate
+            min_token_length: Minimum token length
+            max_token_length: Maximum token length
+            negative_sampler: Negative sampling strategy
+
+        Returns:
+            List of negative samples
+        """
+        negative_samples = []
+        processed_files = 0
+
+        for text_file in tqdm(text_files, desc="Generating negative samples"):
+            if len(negative_samples) >= target_count:
+                break
+
+            try:
+                # Get PMC ID and DOI
+                pmcid = text_file.stem.replace("PMC", "")
+                doi = self.pmc_to_doi.get(pmcid)
+                if not doi:
+                    continue
+
+                # Get expected datasets for this DOI
+                expected_datasets = self.doi_to_datasets.get(doi, [])
+
+                # Read entire file
+                with open(text_file, "r", encoding="utf-8", errors="ignore") as f:
+                    full_text = f.read()
+
+                # Find ALL identifiers in the entire text to avoid them
+                all_identifiers = self._find_identifiers_in_text(
+                    full_text, expected_datasets
+                )
+
+                # Extract text that doesn't contain identifiers
+                sample_text = self._extract_text_without_identifiers(
+                    full_text, all_identifiers, max_token_length, negative_sampler
+                )
+
+                if not sample_text:
+                    continue
+
+                # Double-check: ensure no identifiers in sample
+                sample_identifiers = self._find_identifiers_in_text(
+                    sample_text, expected_datasets
+                )
+                if sample_identifiers:
+                    continue  # Skip if identifiers found
+
+                # Create training sample
+                sample = self._create_training_sample(
+                    sample_text,
+                    [],  # No identifiers for negative sample
+                    f"PMC{pmcid}",
+                    doi,
+                    "negative",
+                )
+
+                # Validate sample length
+                if (
+                    sample
+                    and min_token_length <= len(sample["input_ids"]) <= max_token_length
+                ):
+                    negative_samples.append(sample)
+
+                processed_files += 1
+
+                # Progress update
+                if processed_files % 100 == 0:
+                    print(
+                        f"Progress: {len(negative_samples)}/{target_count} negative samples from {processed_files} files"
+                    )
+
+            except Exception as e:
+                print(f"Error processing {text_file}: {e}")
+                continue
+
+        print(
+            f"Generated {len(negative_samples)} negative samples from {processed_files} files"
+        )
+        return negative_samples
+
+    # TODO: 修正
+    def _extract_text_without_identifiers(
+        self, text: str, identifiers: list[dict], max_length: int = 128
+    ) -> tuple[str, list[int]]:
+        """
+        Extract text that doesn't contain any identifiers.
+
+        Args:
+            text: Full text content
+            identifiers: List of identifier dicts with 'start', 'end' keys
+            max_length: Maximum token length
+
+        Returns:
+            Tuple of (extracted_text, token_labels)
+        """
+        if not identifiers:
+            # No identifiers, can extract from anywhere
+            start_pos = random.randint(0, max(0, len(text) - max_length * 4))
+            end_pos = min(len(text), start_pos + max_length * 4)
+            extracted_text = text[start_pos:end_pos]
+
+            # Tokenize and truncate
+            tokens = self.tokenizer.tokenize(extracted_text)
+            if len(tokens) > max_length - 2:
+                tokens = tokens[: max_length - 2]
+                extracted_text = self.tokenizer.convert_tokens_to_string(tokens)
+
+            labels = [0] * len(tokens)
+            return extracted_text, labels
+
+        # Sort identifiers by position
+        sorted_identifiers = sorted(identifiers, key=lambda x: x["start"])
+
+        # Find safe regions between identifiers
+        safe_regions = []
+
+        # Region before first identifier
+        if sorted_identifiers[0]["start"] > max_length * 4:
+            safe_regions.append((0, sorted_identifiers[0]["start"]))
+
+        # Regions between identifiers
+        for i in range(len(sorted_identifiers) - 1):
+            current_end = sorted_identifiers[i]["end"]
+            next_start = sorted_identifiers[i + 1]["start"]
+
+            if next_start - current_end > max_length * 4:
+                safe_regions.append((current_end, next_start))
+
+        # Region after last identifier
+        last_end = sorted_identifiers[-1]["end"]
+        if len(text) - last_end > max_length * 4:
+            safe_regions.append((last_end, len(text)))
+
+        if not safe_regions:
+            # No safe regions found, return empty
+            return "", []
+
+        # Randomly select a safe region
+        region_start, region_end = random.choice(safe_regions)
+
+        # Extract text from the safe region
+        window_size = max_length * 4
+        if region_end - region_start > window_size:
+            # Region is large enough, extract random portion
+            extract_start = random.randint(region_start, region_end - window_size)
+            extract_end = extract_start + window_size
+        else:
+            # Use entire region
+            extract_start = region_start
+            extract_end = region_end
+
+        extracted_text = text[extract_start:extract_end]
+
+        # Tokenize and truncate
+        tokens = self.tokenizer.tokenize(extracted_text)
+        if len(tokens) > max_length - 2:
+            tokens = tokens[: max_length - 2]
+            extracted_text = self.tokenizer.convert_tokens_to_string(tokens)
+
+        labels = [0] * len(tokens)
+        return extracted_text, labels
+
+    # TODO: TextCropperを使うようにする
+    def _extract_text_around_identifier(
+        self, text: str, identifier: dict, max_length: int = 128
+    ) -> tuple[str, list[int]]:
+        """
+        Extract text around a specific identifier with proper tokenization.
+
+        Args:
+            text: Full text content
+            identifier: Dict with 'start', 'end', 'text', 'type' keys
+            max_length: Maximum token length
+
+        Returns:
+            Tuple of (extracted_text, token_labels)
+        """
+
+        # Calculate window around identifier
+        identifier_start = identifier["start"]
+        identifier_end = identifier["end"]
+        identifier_text = identifier["text"]
+
+        # Estimate token positions (rough approximation)
+        window_chars = max_length * 4  # Rough chars per token estimate
+        # TODO: これはさすがにダメすぎ。 tokenizerでトークン化してからやるべき。
+        # この方法だと、常にtextの中心にidentifierが来ることになる。
+        text_start = max(0, identifier_start - window_chars // 2)
+        text_end = min(len(text), identifier_end + window_chars // 2)
+
+        # Extract surrounding text
+        extracted_text = text[text_start:text_end]
+
+        # Tokenize the extracted text
+        tokens = self.tokenizer.tokenize(extracted_text)
+
+        # Truncate to max_length if necessary
+        if len(tokens) > max_length - 2:  # Account for [CLS] and [SEP]
+            tokens = tokens[: max_length - 2]
+            extracted_text = self.tokenizer.convert_tokens_to_string(tokens)
+
+        # Create labels - find identifier position in tokenized text
+        labels = [0] * len(tokens)
+
+        # Find where the identifier appears in the tokenized text
+        identifier_relative_start = identifier_start - text_start
+        identifier_relative_end = identifier_end - text_start
+
+        if identifier_relative_start >= 0 and identifier_relative_start < len(
+            extracted_text
+        ):
+            # Tokenize up to identifier start to find token position
+            prefix_tokens = self.tokenizer.tokenize(
+                extracted_text[:identifier_relative_start]
+            )
+            identifier_tokens = self.tokenizer.tokenize(identifier_text)
+
+            start_token_idx = len(prefix_tokens)
+            end_token_idx = min(start_token_idx + len(identifier_tokens), len(tokens))
+
+            # Mark identifier tokens as 1
+            for i in range(start_token_idx, end_token_idx):
+                labels[i] = 1
+
+        return extracted_text, labels
+
+    def _extract_text_without_identifiers(
+        self,
+        full_text: str,
+        all_identifiers: list[dict],
+        max_token_length: int,
+        negative_sampler: NegativeSampler | None,
+    ) -> str:
+        """
+        Extract text that doesn't contain any identifiers.
+
+        Args:
+            full_text: Full text content
+            all_identifiers: List of all identifiers to avoid
+            max_token_length: Maximum token length
+            negative_sampler: Negative sampling strategy
+
+        Returns:
+            Extracted text without identifiers
+        """
+        # Use negative sampler if provided
+        # TODO: ほぼこれを使うようにする
+        if negative_sampler:
+            return negative_sampler.sample(full_text, all_identifiers)
+
+        # Default: find text regions without identifiers
+        if not all_identifiers:
+            # If no identifiers, extract random segment
+            return self._extract_random_text_segment(full_text, max_token_length)
+
+        # Find safe regions between identifiers
+        safe_regions = self._find_safe_text_regions(full_text, all_identifiers)
+
+        if not safe_regions:
+            return ""
+
+        # Select random safe region
+        region = random.choice(safe_regions)
+        region_text = full_text[region["start"] : region["end"]]
+
+        # Truncate if too long
+        chars_per_token = 4
+        max_chars = max_token_length * chars_per_token
+
+        if len(region_text) > max_chars:
+            # Extract random portion
+            start_pos = random.randint(0, max(0, len(region_text) - max_chars))
+            region_text = region_text[start_pos : start_pos + max_chars]
+
+            # Align to word boundaries
+            region_text = self._align_to_word_boundaries(region_text)
+
+        return region_text.strip()
+
+    def _extract_random_text_segment(
+        self, full_text: str, max_token_length: int
+    ) -> str:
+        """Extract a random segment of text."""
+        chars_per_token = 4
+        max_chars = max_token_length * chars_per_token
+
+        if len(full_text) <= max_chars:
+            return full_text
+
+        start_pos = random.randint(0, len(full_text) - max_chars)
+        segment = full_text[start_pos : start_pos + max_chars]
+
+        return self._align_to_word_boundaries(segment)
+
+    def _find_safe_text_regions(
+        self, full_text: str, identifiers: list[dict]
+    ) -> list[dict]:
+        """Find text regions that don't contain identifiers."""
+        if not identifiers:
+            return [{"start": 0, "end": len(full_text)}]
+
+        # Sort identifiers by position
+        sorted_identifiers = sorted(identifiers, key=lambda x: x["char_start"])
+
+        safe_regions = []
+        min_region_size = 100  # Minimum characters for a safe region
+
+        # Region before first identifier
+        if sorted_identifiers[0]["char_start"] > min_region_size:
+            safe_regions.append(
+                {
+                    "start": 0,
+                    "end": sorted_identifiers[0]["char_start"] - 10,  # Small buffer
+                }
+            )
+
+        # Regions between identifiers
+        for i in range(len(sorted_identifiers) - 1):
+            current_end = sorted_identifiers[i]["char_end"]
+            next_start = sorted_identifiers[i + 1]["char_start"]
+
+            if next_start - current_end > min_region_size:
+                safe_regions.append(
+                    {
+                        "start": current_end + 10,  # Small buffer
+                        "end": next_start - 10,
+                    }
+                )
+
+        # Region after last identifier
+        last_end = sorted_identifiers[-1]["char_end"]
+        if len(full_text) - last_end > min_region_size:
+            safe_regions.append({"start": last_end + 10, "end": len(full_text)})
+
+        return safe_regions
+
+    def _align_to_word_boundaries(self, text: str) -> str:
+        """Align text to word boundaries."""
+        # Find start of first complete word
+        start = 0
+        while start < len(text) and not text[start].isspace() and start > 0:
+            start += 1
+
+        # Find end of last complete word
+        end = len(text)
+        while end > start and not text[end - 1].isspace() and end < len(text):
+            end -= 1
+
+        return text[start:end].strip()
 
     def _save_samples(self, samples: list[dict], output_path: str, output_format: str):
         """Save generated samples to file."""

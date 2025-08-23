@@ -12,13 +12,12 @@ import sys
 from pathlib import Path
 
 # Add src to path
-sys.path.append(str(Path(__file__).parent / "src"))
-
+# sys.path.append(str(Path(__file__).parent / "src"))
 from transformers import AutoTokenizer
 
-from bert_training.bert_training_data_generator import BERTTrainingDataGenerator
-from bert_training.config_loader import BERTTrainingConfig, load_config_from_yaml
-from bert_training.strategies.text_processing_strategies import (
+from src.data_generation.bert_training_data_generator import BERTTrainingDataGenerator
+from src.data_generation.config_loader import BERTTrainingConfig, load_config_from_yaml
+from src.data_generation.strategies.text_processing_strategies import (
     create_negative_sampler,
     create_text_cropper,
 )
