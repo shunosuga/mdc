@@ -17,9 +17,8 @@ from transformers import AutoTokenizer
 
 from src.data_generation.bert_training_data_generator import BERTTrainingDataGenerator
 from src.data_generation.config_loader import BERTTrainingConfig, load_config_from_yaml
-from src.data_generation.strategies.text_processing_strategies import (
+from src.data_generation.strategies.negative_samplers import (
     create_negative_sampler,
-    create_text_cropper,
 )
 
 
@@ -41,7 +40,7 @@ def run_generation(config: BERTTrainingConfig) -> dict:
     """
     if config.logging.verbose:
         print("=== BERT Training Data Generator ===")
-        print(f"Configuration loaded successfully")
+        print("Configuration loaded successfully")
         print(f"PMC directory: {config.data.pmc_dir}")
         print(f"Corpus file: {config.data.corpus_file}")
         print(f"Output path: {config.output.output_path}")
@@ -66,26 +65,6 @@ def run_generation(config: BERTTrainingConfig) -> dict:
     )
 
     # Create text processing strategies
-    text_cropper = None
-    if config.text_processing.cropper.strategy:
-        # Select appropriate kwargs based on strategy
-        if config.text_processing.cropper.strategy == "window":
-            cropper_kwargs = {"window_size": config.text_processing.cropper.window_size}
-        elif config.text_processing.cropper.strategy == "sentence":
-            cropper_kwargs = {
-                "sentence_context": config.text_processing.cropper.sentence_context
-            }
-        elif config.text_processing.cropper.strategy == "paragraph":
-            cropper_kwargs = {
-                "paragraph_context": config.text_processing.cropper.paragraph_context
-            }
-        else:
-            cropper_kwargs = {}
-
-        text_cropper = create_text_cropper(
-            config.text_processing.cropper.strategy, **cropper_kwargs
-        )
-
     negative_sampler = None
     if config.text_processing.negative_sampler.strategy:
         # Select appropriate kwargs based on strategy
@@ -121,7 +100,6 @@ def run_generation(config: BERTTrainingConfig) -> dict:
         output_path=config.output.output_path,
         random_seed=config.generation.random_seed,
         include_restoration_test=config.processing.include_restoration_test,
-        text_cropper=text_cropper,
         negative_sampler=negative_sampler,
     )
 

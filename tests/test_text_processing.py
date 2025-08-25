@@ -12,7 +12,7 @@ from pathlib import Path
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.data_generation.strategies.text_processing_strategies import (
+from src.data_generation.strategies.negative_samplers import (
     BalancedNegativeSampler,
     ContextualNegativeSampler,
     RandomNegativeSampler,

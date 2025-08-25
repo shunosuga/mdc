@@ -11,47 +11,12 @@ import random
 import re
 import time
 from pathlib import Path
-from typing import Protocol
 
 import polars as pl
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-
-class TextCropper(Protocol):
-    """Interface for text cropping strategies."""
-
-    def crop(self, text: str, identifier_positions: list[dict], **kwargs) -> str:
-        """
-        Crop text around data identifiers.
-
-        Args:
-            text: Original text content
-            identifier_positions: List of identifier position dicts
-            **kwargs: Additional parameters (window_size, etc.)
-
-        Returns:
-            Cropped text segment
-        """
-        ...
-
-
-class NegativeSampler(Protocol):
-    """Interface for negative sample generation strategies."""
-
-    def sample(self, text: str, excluded_regions: list[dict], **kwargs) -> str:
-        """
-        Generate negative samples from text.
-
-        Args:
-            text: Source text content
-            excluded_regions: Regions to avoid (containing identifiers)
-            **kwargs: Additional parameters
-
-        Returns:
-            Negative sample text segment
-        """
-        ...
+from .strategies.negative_samplers import NegativeSampler
 
 
 class BERTTrainingDataGenerator:
@@ -266,18 +231,6 @@ class BERTTrainingDataGenerator:
 
         return found_identifiers
 
-    def _segment_text(self, text: str, text_unit: str = "sentence") -> list[str]:
-        """Segment text into sentences or paragraphs."""
-        if text_unit == "sentence":
-            # Simple sentence segmentation
-            sentences = re.split(r"[.!?]+\s+", text)
-            return [s.strip() for s in sentences if s.strip()]
-        elif text_unit == "paragraph":
-            paragraphs = text.split("\n\n")
-            return [p.strip() for p in paragraphs if p.strip()]
-        else:
-            return [text]  # Return whole text
-
     def _tokenize_with_spans(self, text: str) -> dict:
         """Tokenize text and track character spans."""
         if self.tokenizer is None:
@@ -402,14 +355,12 @@ class BERTTrainingDataGenerator:
         num_samples: int = 10000,
         positive_ratio: float = 0.7,
         tokenizer_name: str = "answerdotai/ModernBERT-base",
-        text_unit: str = "sentence",
         min_token_length: int = 10,
         max_token_length: int = 128,
         output_format: str = "jsonl",
         output_path: str = "training_data.jsonl",
         random_seed: int = 42,
         include_restoration_test: bool = True,
-        text_cropper: TextCropper | None = None,
         negative_sampler: NegativeSampler | None = None,
     ) -> dict:
         """
@@ -426,7 +377,6 @@ class BERTTrainingDataGenerator:
             output_path: Output file path
             random_seed: Random seed for reproducibility
             include_restoration_test: Whether to test restoration accuracy
-            text_cropper: Text cropping strategy
             negative_sampler: Negative sampling strategy
 
         Returns:
@@ -462,7 +412,6 @@ class BERTTrainingDataGenerator:
             target_positive,
             min_token_length,
             max_token_length,
-            text_cropper,
         )
 
         # Phase 2: Generate negative samples
@@ -547,7 +496,6 @@ class BERTTrainingDataGenerator:
         target_count: int,
         min_token_length: int,
         max_token_length: int,
-        text_cropper: TextCropper | None,
     ) -> list[dict]:
         """
         Efficiently generate positive samples by processing whole files at once.
@@ -557,7 +505,6 @@ class BERTTrainingDataGenerator:
             target_count: Number of positive samples to generate
             min_token_length: Minimum token length
             max_token_length: Maximum token length
-            text_cropper: Text cropping strategy
 
         Returns:
             List of positive samples
@@ -598,7 +545,10 @@ class BERTTrainingDataGenerator:
 
                 # Extract text around the focus identifier
                 sample_text = self._extract_text_around_identifier(
-                    full_text, focus_identifier, max_token_length, text_cropper
+                    full_text,
+                    focus_identifier,
+                    min_token_length,
+                    max_token_length,
                 )
 
                 if not sample_text:
@@ -694,7 +644,11 @@ class BERTTrainingDataGenerator:
 
                 # Extract text that doesn't contain identifiers
                 sample_text = self._extract_text_without_identifiers(
-                    full_text, all_identifiers, max_token_length, negative_sampler
+                    full_text,
+                    all_identifiers,
+                    min_token_length,
+                    max_token_length,
+                    negative_sampler,
                 )
 
                 if not sample_text:
@@ -740,156 +694,91 @@ class BERTTrainingDataGenerator:
         )
         return negative_samples
 
-    # TODO: 修正
-    def _extract_text_without_identifiers(
-        self, text: str, identifiers: list[dict], max_length: int = 128
-    ) -> tuple[str, list[int]]:
-        """
-        Extract text that doesn't contain any identifiers.
-
-        Args:
-            text: Full text content
-            identifiers: List of identifier dicts with 'start', 'end' keys
-            max_length: Maximum token length
-
-        Returns:
-            Tuple of (extracted_text, token_labels)
-        """
-        if not identifiers:
-            # No identifiers, can extract from anywhere
-            start_pos = random.randint(0, max(0, len(text) - max_length * 4))
-            end_pos = min(len(text), start_pos + max_length * 4)
-            extracted_text = text[start_pos:end_pos]
-
-            # Tokenize and truncate
-            tokens = self.tokenizer.tokenize(extracted_text)
-            if len(tokens) > max_length - 2:
-                tokens = tokens[: max_length - 2]
-                extracted_text = self.tokenizer.convert_tokens_to_string(tokens)
-
-            labels = [0] * len(tokens)
-            return extracted_text, labels
-
-        # Sort identifiers by position
-        sorted_identifiers = sorted(identifiers, key=lambda x: x["start"])
-
-        # Find safe regions between identifiers
-        safe_regions = []
-
-        # Region before first identifier
-        if sorted_identifiers[0]["start"] > max_length * 4:
-            safe_regions.append((0, sorted_identifiers[0]["start"]))
-
-        # Regions between identifiers
-        for i in range(len(sorted_identifiers) - 1):
-            current_end = sorted_identifiers[i]["end"]
-            next_start = sorted_identifiers[i + 1]["start"]
-
-            if next_start - current_end > max_length * 4:
-                safe_regions.append((current_end, next_start))
-
-        # Region after last identifier
-        last_end = sorted_identifiers[-1]["end"]
-        if len(text) - last_end > max_length * 4:
-            safe_regions.append((last_end, len(text)))
-
-        if not safe_regions:
-            # No safe regions found, return empty
-            return "", []
-
-        # Randomly select a safe region
-        region_start, region_end = random.choice(safe_regions)
-
-        # Extract text from the safe region
-        window_size = max_length * 4
-        if region_end - region_start > window_size:
-            # Region is large enough, extract random portion
-            extract_start = random.randint(region_start, region_end - window_size)
-            extract_end = extract_start + window_size
-        else:
-            # Use entire region
-            extract_start = region_start
-            extract_end = region_end
-
-        extracted_text = text[extract_start:extract_end]
-
-        # Tokenize and truncate
-        tokens = self.tokenizer.tokenize(extracted_text)
-        if len(tokens) > max_length - 2:
-            tokens = tokens[: max_length - 2]
-            extracted_text = self.tokenizer.convert_tokens_to_string(tokens)
-
-        labels = [0] * len(tokens)
-        return extracted_text, labels
-
-    # TODO: TextCropperを使うようにする
     def _extract_text_around_identifier(
-        self, text: str, identifier: dict, max_length: int = 128
-    ) -> tuple[str, list[int]]:
+        self,
+        text: str,
+        identifier: dict,
+        min_token_length: int,
+        max_token_length: int,
+    ) -> str:
         """
         Extract text around a specific identifier with proper tokenization.
+        Identifier is positioned in the latter part of the chunk to provide context.
 
         Args:
             text: Full text content
-            identifier: Dict with 'start', 'end', 'text', 'type' keys
-            max_length: Maximum token length
+            identifier: Dict with 'char_start', 'char_end', 'identifier' keys
+            min_token_length: Minimum token length
+            max_token_length: Maximum token length
 
         Returns:
-            Tuple of (extracted_text, token_labels)
+            Extracted text containing the identifier
         """
 
-        # Calculate window around identifier
-        identifier_start = identifier["start"]
-        identifier_end = identifier["end"]
-        identifier_text = identifier["text"]
+        # Default implementation: position identifier in latter part of chunk
+        identifier_start = identifier["char_start"]
+        identifier_end = identifier["char_end"]
 
-        # Estimate token positions (rough approximation)
-        window_chars = max_length * 4  # Rough chars per token estimate
-        # TODO: これはさすがにダメすぎ。 tokenizerでトークン化してからやるべき。
-        # この方法だと、常にtextの中心にidentifierが来ることになる。
-        text_start = max(0, identifier_start - window_chars // 2)
-        text_end = min(len(text), identifier_end + window_chars // 2)
+        # Start with a reasonable estimate and refine with tokenizer
+        max_attempts = 10
 
-        # Extract surrounding text
-        extracted_text = text[text_start:text_end]
+        for attempt in range(max_attempts):
+            # Calculate positioning: put identifier randomly between 40-100% through the chunk
+            # This provides varying amounts of context before the identifier
+            estimated_chars = max_token_length * 4  # rough estimate
 
-        # Tokenize the extracted text
-        tokens = self.tokenizer.tokenize(extracted_text)
+            # Random position between 0.4 and 1.0 (40% to 100%)
+            identifier_position_ratio = random.uniform(0.4, 1.0)
+            context_before = int(estimated_chars * identifier_position_ratio)
+            context_after = estimated_chars - context_before
 
-        # Truncate to max_length if necessary
-        if len(tokens) > max_length - 2:  # Account for [CLS] and [SEP]
-            tokens = tokens[: max_length - 2]
-            extracted_text = self.tokenizer.convert_tokens_to_string(tokens)
+            text_start = max(0, identifier_start - context_before)
+            text_end = min(len(text), identifier_end + context_after)
 
-        # Create labels - find identifier position in tokenized text
-        labels = [0] * len(tokens)
+            # Extract candidate text
+            candidate_text = text[text_start:text_end]
 
-        # Find where the identifier appears in the tokenized text
-        identifier_relative_start = identifier_start - text_start
-        identifier_relative_end = identifier_end - text_start
+            if not candidate_text.strip():
+                # If no text, try smaller window
+                estimated_chars = min_token_length * 4
+                continue
 
-        if identifier_relative_start >= 0 and identifier_relative_start < len(
-            extracted_text
-        ):
-            # Tokenize up to identifier start to find token position
-            prefix_tokens = self.tokenizer.tokenize(
-                extracted_text[:identifier_relative_start]
-            )
-            identifier_tokens = self.tokenizer.tokenize(identifier_text)
+            # Check token length with actual tokenizer
+            tokens = self.tokenizer.tokenize(candidate_text)
+            token_count = len(tokens)
 
-            start_token_idx = len(prefix_tokens)
-            end_token_idx = min(start_token_idx + len(identifier_tokens), len(tokens))
+            if min_token_length <= token_count <= max_token_length:
+                return candidate_text
+            elif token_count > max_token_length:
+                # Truncate from the end to preserve context before identifier
+                truncated_tokens = tokens[:max_token_length]
+                truncated_text = self.tokenizer.convert_tokens_to_string(
+                    truncated_tokens
+                )
 
-            # Mark identifier tokens as 1
-            for i in range(start_token_idx, end_token_idx):
-                labels[i] = 1
+                # Verify the identifier is still in the truncated text
+                if identifier["identifier"].lower() in truncated_text.lower():
+                    return truncated_text
+                else:
+                    # If identifier was cut off, try a different approach
+                    estimated_chars = int(estimated_chars * 0.8)
+                    continue
+            else:
+                # Too short, expand the window
+                estimated_chars = int(estimated_chars * 1.2)
+                continue
 
-        return extracted_text, labels
+        # Fallback: just return text around identifier with minimal processing
+        fallback_chars = max_token_length * 3
+        text_start = max(0, identifier_start - fallback_chars // 2)
+        text_end = min(len(text), identifier_start + fallback_chars // 2)
+        return text[text_start:text_end]
 
     def _extract_text_without_identifiers(
         self,
         full_text: str,
         all_identifiers: list[dict],
+        min_token_length: int,
         max_token_length: int,
         negative_sampler: NegativeSampler | None,
     ) -> str:
@@ -899,116 +788,29 @@ class BERTTrainingDataGenerator:
         Args:
             full_text: Full text content
             all_identifiers: List of all identifiers to avoid
+            min_token_length: Minimum token length
             max_token_length: Maximum token length
             negative_sampler: Negative sampling strategy
 
         Returns:
             Extracted text without identifiers
         """
-        # Use negative sampler if provided
-        # TODO: ほぼこれを使うようにする
-        if negative_sampler:
-            return negative_sampler.sample(full_text, all_identifiers)
+        # Always use negative sampler - create default if none provided
+        if negative_sampler is None:
+            from .strategies.negative_samplers import create_negative_sampler
 
-        # Default: find text regions without identifiers
-        if not all_identifiers:
-            # If no identifiers, extract random segment
-            return self._extract_random_text_segment(full_text, max_token_length)
+            negative_sampler = create_negative_sampler("random")
 
-        # Find safe regions between identifiers
-        safe_regions = self._find_safe_text_regions(full_text, all_identifiers)
+        # Generate negative sample using tokenizer and length constraints
+        sample_text = negative_sampler.sample(
+            full_text,
+            all_identifiers,
+            self.tokenizer,
+            min_token_length,
+            max_token_length,
+        )
 
-        if not safe_regions:
-            return ""
-
-        # Select random safe region
-        region = random.choice(safe_regions)
-        region_text = full_text[region["start"] : region["end"]]
-
-        # Truncate if too long
-        chars_per_token = 4
-        max_chars = max_token_length * chars_per_token
-
-        if len(region_text) > max_chars:
-            # Extract random portion
-            start_pos = random.randint(0, max(0, len(region_text) - max_chars))
-            region_text = region_text[start_pos : start_pos + max_chars]
-
-            # Align to word boundaries
-            region_text = self._align_to_word_boundaries(region_text)
-
-        return region_text.strip()
-
-    def _extract_random_text_segment(
-        self, full_text: str, max_token_length: int
-    ) -> str:
-        """Extract a random segment of text."""
-        chars_per_token = 4
-        max_chars = max_token_length * chars_per_token
-
-        if len(full_text) <= max_chars:
-            return full_text
-
-        start_pos = random.randint(0, len(full_text) - max_chars)
-        segment = full_text[start_pos : start_pos + max_chars]
-
-        return self._align_to_word_boundaries(segment)
-
-    def _find_safe_text_regions(
-        self, full_text: str, identifiers: list[dict]
-    ) -> list[dict]:
-        """Find text regions that don't contain identifiers."""
-        if not identifiers:
-            return [{"start": 0, "end": len(full_text)}]
-
-        # Sort identifiers by position
-        sorted_identifiers = sorted(identifiers, key=lambda x: x["char_start"])
-
-        safe_regions = []
-        min_region_size = 100  # Minimum characters for a safe region
-
-        # Region before first identifier
-        if sorted_identifiers[0]["char_start"] > min_region_size:
-            safe_regions.append(
-                {
-                    "start": 0,
-                    "end": sorted_identifiers[0]["char_start"] - 10,  # Small buffer
-                }
-            )
-
-        # Regions between identifiers
-        for i in range(len(sorted_identifiers) - 1):
-            current_end = sorted_identifiers[i]["char_end"]
-            next_start = sorted_identifiers[i + 1]["char_start"]
-
-            if next_start - current_end > min_region_size:
-                safe_regions.append(
-                    {
-                        "start": current_end + 10,  # Small buffer
-                        "end": next_start - 10,
-                    }
-                )
-
-        # Region after last identifier
-        last_end = sorted_identifiers[-1]["char_end"]
-        if len(full_text) - last_end > min_region_size:
-            safe_regions.append({"start": last_end + 10, "end": len(full_text)})
-
-        return safe_regions
-
-    def _align_to_word_boundaries(self, text: str) -> str:
-        """Align text to word boundaries."""
-        # Find start of first complete word
-        start = 0
-        while start < len(text) and not text[start].isspace() and start > 0:
-            start += 1
-
-        # Find end of last complete word
-        end = len(text)
-        while end > start and not text[end - 1].isspace() and end < len(text):
-            end -= 1
-
-        return text[start:end].strip()
+        return sample_text
 
     def _save_samples(self, samples: list[dict], output_path: str, output_format: str):
         """Save generated samples to file."""

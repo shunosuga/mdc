@@ -12,7 +12,7 @@ from src.data_generation.restoration_tester import (
     reconstruct_from_subwords,
     restore_identifiers,
 )
-from src.data_generation.strategies.text_processing_strategies import (
+from src.data_generation.strategies.negative_samplers import (
     RandomNegativeSampler,
     SentenceCropper,
     WindowCropper,

@@ -31,12 +31,6 @@ processing:
 
 # Text processing strategies
 text_processing:
-  cropper:
-    strategy: "window"  # "window", "sentence", "paragraph"
-    window_size: 100
-    sentence_context: 1
-    paragraph_context: 0
-  
   negative_sampler:
     strategy: "balanced"  # "random", "contextual", "balanced"
     sample_length: 100
